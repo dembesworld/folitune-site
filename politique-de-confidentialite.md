@@ -59,4 +59,4 @@ Toute modification de cette politique sera publiée ici, avec sa date. L'app n'a
 
 ## Contact
 
-Pour toute question : [adresse de contact à indiquer avant publication]
+Pour toute question : dembesworld@gmail.com
