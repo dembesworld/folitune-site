@@ -1,0 +1,3 @@
+title: FolliTune
+theme: jekyll-theme-minimal
+exclude: [tool, README.md]

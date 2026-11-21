@@ -1,0 +1,61 @@
+# Signs a fresh ShazamKit developer token for the Android app and publishes
+# it in shazam-token.json, which GitHub Pages serves to the app. Apple
+# limits a token to 180 days; a monthly run keeps at least five months of
+# validity ahead, so no store update is ever needed just for the token.
+#
+# One-time setup (repository settings):
+#   - secret APPLE_MEDIA_KEY_P8: the full content of the AuthKey_….p8 file
+#     (Keys → key with "Media Services (MusicKit, ShazamKit)" enabled);
+#   - Pages: branch main, folder / (root).
+# The private key is only ever read inside the runner; the token it signs
+# is public by design (the app ships one too).
+name: Renew the Shazam token
+
+on:
+  schedule:
+    - cron: "0 6 1 * *"   # the 1st of every month, 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  APPLE_TEAM_ID: N828X3DWTT
+  APPLE_KEY_ID: YH8P3VF5S5
+  TOKEN_DAYS: "180"
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tools the signing script needs
+        run: sudo apt-get install -y --no-install-recommends xxd
+
+      - name: Sign a new token
+        env:
+          APPLE_MEDIA_KEY_P8: ${{ secrets.APPLE_MEDIA_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          if [ -z "$APPLE_MEDIA_KEY_P8" ]; then
+            echo "Secret APPLE_MEDIA_KEY_P8 manquant" >&2
+            exit 1
+          fi
+          key="$(mktemp)"
+          printf '%s\n' "$APPLE_MEDIA_KEY_P8" > "$key"
+          token="$(tool/shazam_token.sh "$key" "$APPLE_TEAM_ID" "$APPLE_KEY_ID" "$TOKEN_DAYS")"
+          rm -f "$key"
+          expires="$(date -u -d "+${TOKEN_DAYS} days" +%Y-%m-%dT%H:%M:%SZ)"
+          generated="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          printf '{\n  "token": "%s",\n  "expires": "%s",\n  "generatedAt": "%s"\n}\n' "$token" "$expires" "$generated" > shazam-token.json
+          echo "Jeton valable jusqu'au $expires"
+
+      - name: Publish
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add shazam-token.json
+          git diff --cached --quiet && { echo "Rien à publier"; exit 0; }
+          git commit -m "Shazam token renewed"
+          git push
